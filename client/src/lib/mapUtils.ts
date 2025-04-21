@@ -1,6 +1,5 @@
 import L from "leaflet";
 import type { Landmark, Road, Coordinate } from "@shared/schema";
-import { create } from "zustand";
 
 // Map style URLs
 export const LIGHT_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
@@ -128,17 +127,96 @@ export function drawRoads(
   // Determine road color based on mode
   const roadColor = isDarkMode ? '#60a5fa' : '#3b82f6';
   
+  // Create tooltip container if it doesn't exist
+  if (!document.getElementById('road-tooltip')) {
+    const tooltipContainer = document.createElement('div');
+    tooltipContainer.id = 'road-tooltip';
+    tooltipContainer.className = 'road-tooltip hidden';
+    document.body.appendChild(tooltipContainer);
+  }
+  
+  const tooltipElement = document.getElementById('road-tooltip');
+  
   // Draw each road
   roads.forEach(road => {
     const coordinates = road.coordinates as Coordinate[];
     
     // Create polyline for road
-    L.polyline(coordinates, {
+    const polyline = L.polyline(coordinates, {
       color: roadColor,
       weight: 5,
-      opacity: 0.7
+      opacity: 0.7,
+      interactive: true // Make sure the polyline can receive mouse events
     }).addTo(layers.roadsLayer);
+    
+    // Add event listeners for mouseover, mousemove and mouseout
+    polyline.on('mouseover', (e: L.LeafletMouseEvent) => {
+      // Change the style of the polyline
+      polyline.setStyle({
+        weight: 7,
+        opacity: 1
+      });
+      
+      // Bring the polyline to front
+      if (!(L.Browser.ie || L.Browser.opera || L.Browser.edge)) {
+        polyline.bringToFront();
+      }
+      
+      // Show tooltip
+      if (tooltipElement) {
+        tooltipElement.classList.remove('hidden');
+      }
+    });
+    
+    polyline.on('mousemove', (e: L.LeafletMouseEvent) => {
+      // Get closest point on the polyline to the mouse
+      const closestPoint = getClosestPoint(e.latlng, coordinates);
+      
+      // Update tooltip content
+      if (tooltipElement) {
+        tooltipElement.innerHTML = `
+          <div class="font-medium mb-1">${road.name || 'Road Segment'}</div>
+          <div class="text-sm">Lat: ${closestPoint[0].toFixed(6)}</div>
+          <div class="text-sm">Lng: ${closestPoint[1].toFixed(6)}</div>
+        `;
+        
+        // Position tooltip near mouse
+        if (e.originalEvent) {
+          tooltipElement.style.left = (e.originalEvent.pageX + 15) + 'px';
+          tooltipElement.style.top = (e.originalEvent.pageY - 40) + 'px';
+        }
+      }
+    });
+    
+    polyline.on('mouseout', (e: L.LeafletMouseEvent) => {
+      // Reset the style of the polyline
+      polyline.setStyle({
+        weight: 5,
+        opacity: 0.7
+      });
+      
+      // Hide tooltip
+      if (tooltipElement) {
+        tooltipElement.classList.add('hidden');
+      }
+    });
   });
+}
+
+// Helper function to find the closest point on a polyline to a given point
+function getClosestPoint(latlng: L.LatLng, coordinates: Coordinate[]): Coordinate {
+  let minDistance = Infinity;
+  let closestPoint: Coordinate = coordinates[0];
+  
+  for (const point of coordinates) {
+    const distance = latlng.distanceTo(L.latLng(point[0], point[1]));
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestPoint = point;
+    }
+  }
+  
+  return closestPoint;
 }
 
 // Calculate distance between two coordinates in kilometers
