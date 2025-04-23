@@ -124,8 +124,21 @@ export function drawRoads(
   
   if (!isVisible) return;
   
-  // Determine road color based on mode
-  const roadColor = isDarkMode ? '#60a5fa' : '#3b82f6';
+  // Define color schemes for different road types
+  const roadStyles = {
+    motorway: { color: isDarkMode ? '#f97316' : '#ea580c', weight: 8, dashArray: null },
+    trunk: { color: isDarkMode ? '#f97316' : '#ea580c', weight: 7, dashArray: null },
+    primary: { color: isDarkMode ? '#3b82f6' : '#2563eb', weight: 6, dashArray: null },
+    secondary: { color: isDarkMode ? '#60a5fa' : '#3b82f6', weight: 5, dashArray: null },
+    tertiary: { color: isDarkMode ? '#93c5fd' : '#60a5fa', weight: 4, dashArray: null },
+    residential: { color: isDarkMode ? '#cbd5e1' : '#94a3b8', weight: 3.5, dashArray: null },
+    service: { color: isDarkMode ? '#94a3b8' : '#64748b', weight: 3, dashArray: null },
+    footway: { color: isDarkMode ? '#d1d5db' : '#9ca3af', weight: 2, dashArray: '5, 5' },
+    path: { color: isDarkMode ? '#d1d5db' : '#9ca3af', weight: 2, dashArray: '5, 5' },
+    track: { color: isDarkMode ? '#a1a1aa' : '#71717a', weight: 2, dashArray: '5, 5' },
+    // Default style for other road types
+    default: { color: isDarkMode ? '#60a5fa' : '#3b82f6', weight: 4, dashArray: null }
+  };
   
   // Create tooltip container if it doesn't exist
   if (!document.getElementById('road-tooltip')) {
@@ -133,27 +146,90 @@ export function drawRoads(
     tooltipContainer.id = 'road-tooltip';
     tooltipContainer.className = 'road-tooltip hidden';
     document.body.appendChild(tooltipContainer);
+    
+    // Add styles for the tooltip if not already in CSS
+    if (!document.getElementById('road-tooltip-style')) {
+      const style = document.createElement('style');
+      style.id = 'road-tooltip-style';
+      style.textContent = `
+        .road-tooltip {
+          position: fixed;
+          background-color: ${isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)'};
+          color: ${isDarkMode ? '#e2e8f0' : '#0f172a'};
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-size: 14px;
+          z-index: 1000;
+          pointer-events: none;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          max-width: 250px;
+          border: 1px solid ${isDarkMode ? 'rgba(75, 85, 99, 0.5)' : 'rgba(226, 232, 240, 0.8)'};
+        }
+        .road-tooltip.hidden {
+          display: none;
+        }
+      `;
+      document.head.appendChild(style);
+    }
   }
   
   const tooltipElement = document.getElementById('road-tooltip');
   
+  // Sort roads: main roads first (drawn underneath), minor roads last (drawn on top)
+  const sortedRoads = [...roads].sort((a, b) => {
+    const roadTypeOrder: {[key: string]: number} = {
+      'motorway': 1,
+      'trunk': 2, 
+      'primary': 3,
+      'secondary': 4,
+      'tertiary': 5,
+      'residential': 6,
+      'service': 7,
+      'path': 8,
+      'footway': 9,
+      'track': 10
+    };
+    
+    const roadTypeA = a.roadType || 'residential';
+    const roadTypeB = b.roadType || 'residential';
+    
+    return (roadTypeOrder[roadTypeA] || 99) - 
+           (roadTypeOrder[roadTypeB] || 99);
+  });
+  
   // Draw each road
-  roads.forEach(road => {
+  sortedRoads.forEach(road => {
     const coordinates = road.coordinates as Coordinate[];
     
-    // Create polyline for road
+    // Skip roads with insufficient coordinates
+    if (!coordinates || coordinates.length < 2) return;
+    
+    // Get style for this road type
+    const roadType = road.roadType || 'default';
+    const style = (roadStyles as any)[roadType] || roadStyles.default;
+    
+    // Create polyline for road with smooth rendering
     const polyline = L.polyline(coordinates, {
-      color: roadColor,
-      weight: 5,
-      opacity: 0.7,
-      interactive: true // Make sure the polyline can receive mouse events
+      color: style.color,
+      weight: style.weight,
+      opacity: 0.8,
+      lineJoin: 'round', // Makes joins between segments rounded
+      lineCap: 'round',  // Rounds the ends of the line
+      interactive: true, // Make sure the polyline can receive mouse events
+      dashArray: style.dashArray,
+      smoothFactor: 1    // How much to simplify the polyline (1 = default)
     }).addTo(layers.roadsLayer);
+    
+    // Add road name as popup if available
+    if (road.name) {
+      polyline.bindPopup(road.name);
+    }
     
     // Add event listeners for mouseover, mousemove and mouseout
     polyline.on('mouseover', (e: L.LeafletMouseEvent) => {
       // Change the style of the polyline
       polyline.setStyle({
-        weight: 7,
+        weight: style.weight + 2,
         opacity: 1
       });
       
@@ -172,12 +248,17 @@ export function drawRoads(
       // Get closest point on the polyline to the mouse
       const closestPoint = getClosestPoint(e.latlng, coordinates);
       
+      // Get road type display name
+      const roadTypeDisplay = String(roadType).charAt(0).toUpperCase() + String(roadType).slice(1);
+      
       // Update tooltip content
       if (tooltipElement) {
         tooltipElement.innerHTML = `
-          <div class="font-medium mb-1">${road.name || 'Road Segment'}</div>
-          <div class="text-sm">Lat: ${closestPoint[0].toFixed(6)}</div>
+          <div class="font-medium mb-1">${road.name || 'Unnamed Road'}</div>
+          <div class="text-sm text-slate-500">${roadTypeDisplay} road</div>
+          <div class="text-sm mt-1">Lat: ${closestPoint[0].toFixed(6)}</div>
           <div class="text-sm">Lng: ${closestPoint[1].toFixed(6)}</div>
+          ${road.osmId ? `<div class="text-xs mt-2 text-slate-400">OSM ID: ${road.osmId}</div>` : ''}
         `;
         
         // Position tooltip near mouse
@@ -191,8 +272,8 @@ export function drawRoads(
     polyline.on('mouseout', (e: L.LeafletMouseEvent) => {
       // Reset the style of the polyline
       polyline.setStyle({
-        weight: 5,
-        opacity: 0.7
+        weight: style.weight,
+        opacity: 0.8
       });
       
       // Hide tooltip

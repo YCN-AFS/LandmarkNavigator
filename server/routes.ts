@@ -119,7 +119,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const road of roads) {
           await storage.addRoad({
             ...road,
-            coordinates: road.coordinates as any
+            coordinates: road.coordinates as any,
+            tags: road.tags as any
           });
         }
       }
@@ -274,257 +275,34 @@ async function searchWikipedia(query: string): Promise<any[]> {
 }
 
 // Helper function to fetch Buu Long roads
+import { fetchRoadDataFromOSM, fetchRoadDataFromGeoJSON, getTestRoadData } from './osmData';
+
 async function fetchBuuLongRoads(): Promise<any[]> {
-  // Buu Long approximate coordinates and bounds
-  const buuLongCenter: Coordinate = [10.9565, 106.8603];
-  
-  // In a real implementation, this would call an external API
-  // For this implementation, we'll use predefined road data for the Buu Long area
-  // These coordinates are based on Google Maps data for Buu Long area
-  
-  const roads = [
-    // Main arterial roads - East-West
-    {
-      name: "Đường Đồng Khởi (Main East-West)",
-      coordinates: [
-        [10.957, 106.830],
-        [10.957, 106.835],
-        [10.957, 106.840],
-        [10.957, 106.845],
-        [10.957, 106.850],
-        [10.957, 106.855],
-        [10.957, 106.860],
-        [10.957, 106.865],
-        [10.957, 106.870]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Đường Huỳnh Văn Nghệ (East-West)",
-      coordinates: [
-        [10.954, 106.835],
-        [10.954, 106.840],
-        [10.954, 106.845],
-        [10.954, 106.850],
-        [10.954, 106.855],
-        [10.954, 106.860],
-        [10.954, 106.865],
-        [10.954, 106.870]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Đường Phan Đình Phùng (East-West)",
-      coordinates: [
-        [10.960, 106.835],
-        [10.960, 106.840],
-        [10.960, 106.845],
-        [10.960, 106.850],
-        [10.960, 106.855],
-        [10.960, 106.860],
-        [10.960, 106.865],
-        [10.960, 106.870]
-      ],
-      area: "buu long"
-    },
-    // Main arterial roads - North-South
-    {
-      name: "Đường Phạm Văn Thuận (North-South)",
-      coordinates: [
-        [10.972, 106.860],
-        [10.970, 106.860],
-        [10.968, 106.860],
-        [10.966, 106.860],
-        [10.964, 106.860],
-        [10.962, 106.860],
-        [10.960, 106.860],
-        [10.958, 106.860],
-        [10.956, 106.860],
-        [10.954, 106.860],
-        [10.952, 106.860],
-        [10.950, 106.860],
-        [10.948, 106.860]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Đường Võ Thị Sáu (North-South)",
-      coordinates: [
-        [10.972, 106.850],
-        [10.970, 106.850],
-        [10.968, 106.850],
-        [10.966, 106.850],
-        [10.964, 106.850],
-        [10.962, 106.850],
-        [10.960, 106.850],
-        [10.958, 106.850],
-        [10.956, 106.850],
-        [10.954, 106.850],
-        [10.952, 106.850],
-        [10.950, 106.850],
-        [10.948, 106.850]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Đường Nguyễn Ái Quốc (North-South)",
-      coordinates: [
-        [10.972, 106.840],
-        [10.970, 106.840],
-        [10.968, 106.840],
-        [10.966, 106.840],
-        [10.964, 106.840],
-        [10.962, 106.840],
-        [10.960, 106.840],
-        [10.958, 106.840],
-        [10.956, 106.840],
-        [10.954, 106.840],
-        [10.952, 106.840],
-        [10.950, 106.840],
-        [10.948, 106.840]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Đường Hoàng Diệu (North-South)",
-      coordinates: [
-        [10.972, 106.865],
-        [10.970, 106.865],
-        [10.968, 106.865],
-        [10.966, 106.865],
-        [10.964, 106.865],
-        [10.962, 106.865],
-        [10.960, 106.865],
-        [10.958, 106.865],
-        [10.956, 106.865],
-        [10.954, 106.865],
-        [10.952, 106.865],
-        [10.950, 106.865],
-        [10.948, 106.865]
-      ],
-      area: "buu long"
-    },
-    // Diagonal roads
-    {
-      name: "Đường Bửu Long (Major Diagonal)",
-      coordinates: [
-        [10.976, 106.830],
-        [10.974, 106.835],
-        [10.972, 106.840],
-        [10.970, 106.845],
-        [10.968, 106.850],
-        [10.966, 106.855],
-        [10.964, 106.860],
-        [10.962, 106.865],
-        [10.960, 106.870],
-        [10.958, 106.875]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Đường Cách Mạng Tháng Tám (Diagonal)",
-      coordinates: [
-        [10.946, 106.845],
-        [10.948, 106.850],
-        [10.950, 106.855],
-        [10.952, 106.860],
-        [10.954, 106.865],
-        [10.956, 106.870],
-        [10.958, 106.875]
-      ],
-      area: "buu long"
-    },
-    // Campus roads
-    {
-      name: "Đường Nội Bộ ĐH Đồng Nai (Campus - East)",
-      coordinates: [
-        [10.956, 106.855],
-        [10.957, 106.855],
-        [10.958, 106.855],
-        [10.959, 106.855],
-        [10.960, 106.855]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Đường Nội Bộ ĐH Đồng Nai (Campus - West)",
-      coordinates: [
-        [10.956, 106.845],
-        [10.957, 106.845],
-        [10.958, 106.845],
-        [10.959, 106.845],
-        [10.960, 106.845]
-      ],
-      area: "buu long"
-    },
-    // Smaller connecting roads
-    {
-      name: "Hẻm 7 Đồng Khởi (Connection)",
-      coordinates: [
-        [10.957, 106.845],
-        [10.956, 106.846],
-        [10.955, 106.847],
-        [10.954, 106.848],
-        [10.953, 106.849],
-        [10.952, 106.850]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Hẻm 10 Đồng Khởi (Connection)",
-      coordinates: [
-        [10.957, 106.855],
-        [10.956, 106.856],
-        [10.955, 106.857],
-        [10.954, 106.858],
-        [10.953, 106.859],
-        [10.952, 106.860]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Đường Lê Quý Đôn (East-West)",
-      coordinates: [
-        [10.962, 106.830],
-        [10.962, 106.835],
-        [10.962, 106.840],
-        [10.962, 106.845],
-        [10.962, 106.850],
-        [10.962, 106.855],
-        [10.962, 106.860]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Đường Trần Phú (East-West)",
-      coordinates: [
-        [10.966, 106.830],
-        [10.966, 106.835],
-        [10.966, 106.840],
-        [10.966, 106.845],
-        [10.966, 106.850],
-        [10.966, 106.855],
-        [10.966, 106.860]
-      ],
-      area: "buu long"
-    },
-    {
-      name: "Đường Phan Chu Trinh (North-South)",
-      coordinates: [
-        [10.972, 106.835],
-        [10.970, 106.835],
-        [10.968, 106.835],
-        [10.966, 106.835],
-        [10.964, 106.835],
-        [10.962, 106.835],
-        [10.960, 106.835],
-        [10.958, 106.835],
-        [10.956, 106.835],
-        [10.954, 106.835]
-      ],
-      area: "buu long"
+  // First try to get real OSM data
+  try {
+    // Try getting data from OpenStreetMap
+    const osmRoads = await fetchRoadDataFromOSM();
+    
+    if (osmRoads && osmRoads.length > 0) {
+      console.log(`Successfully fetched ${osmRoads.length} roads from OpenStreetMap`);
+      return osmRoads;
     }
-  ];
-  
-  return roads;
+    
+    // If OSM API fails, try the GeoJSON API
+    const geoJsonRoads = await fetchRoadDataFromGeoJSON();
+    
+    if (geoJsonRoads && geoJsonRoads.length > 0) {
+      console.log(`Successfully fetched ${geoJsonRoads.length} roads from GeoJSON API`);
+      return geoJsonRoads;
+    }
+    
+    // If both APIs fail, use the test data with curves
+    console.log('Using test road data with realistic curves');
+    return getTestRoadData();
+  } catch (error) {
+    console.error('Error fetching road data from external sources:', error);
+    console.log('Falling back to test data with realistic curves');
+    // Fallback to test data if all else fails
+    return getTestRoadData();
+  }
 }

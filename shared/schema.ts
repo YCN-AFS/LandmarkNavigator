@@ -24,6 +24,9 @@ export const roads = pgTable("roads", {
   name: text("name"),
   coordinates: jsonb("coordinates").notNull(), // Array of [lat, lng] coordinates
   area: text("area").notNull(), 
+  roadType: text("road_type"),
+  tags: jsonb("tags"),
+  osmId: text("osm_id")
 });
 
 export const insertRoadSchema = createInsertSchema(roads).omit({
